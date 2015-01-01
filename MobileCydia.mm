@@ -5818,9 +5818,11 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
     _H<NSString> description_;
     bool commercial_;
     _H<NSString> source_;
-    _H<UIImage> badge_;
     _H<UIImage> placard_;
     bool summarized_;
+
+    _H<NSString> latest_;
+
 }
 
 - (PackageCell *) init;
@@ -5858,8 +5860,8 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
     name_ = nil;
     description_ = nil;
     source_ = nil;
-    badge_ = nil;
     placard_ = nil;
+    latest_ = nil;
 
     if (package == nil)
         [content_ setBackgroundColor:[UIColor whiteColor]];
@@ -5869,6 +5871,9 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
         Source *source = [package source];
 
         icon_ = [package icon];
+
+        if(NSString *latest = [package latest])
+            latest_ = [NSString stringWithFormat:@" %@", latest];
 
         if (NSString *name = [package name])
             name_ = [NSString stringWithString:name];
@@ -5898,9 +5903,6 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
         }
 
         source_ = [NSString stringWithFormat:UCLocalize("FROM"), from];
-
-        if (NSString *purpose = [package primaryPurpose])
-            badge_ = [UIImage imageAtPath:[NSString stringWithFormat:@"%@/Purposes/%@.png", App_, purpose]];
 
         UIColor *color;
         NSString *placard;
@@ -5936,32 +5938,39 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
     bool highlighted(highlighted_);
     float width([self bounds].size.width);
 
-    if (icon_ != nil) {
+    if (icon_) {
         CGRect rect;
         rect.size = [(UIImage *) icon_ size];
 
-        while (rect.size.width > 16 || rect.size.height > 16) {
-            rect.size.width /= 2;
-            rect.size.height /= 2;
+        float padding = 6;
+        float maxSize = self.bounds.size.height - padding*2;
+
+        float widthPerHeight = rect.size.width/rect.size.height;
+        if(rect.size.width > rect.size.height)
+        {
+            rect.size.width = maxSize;
+            rect.size.height = maxSize/widthPerHeight;
+        }
+        else
+        {
+            rect.size.width = maxSize*widthPerHeight;
+            rect.size.height = maxSize;
         }
 
-        rect.origin.x = 19 - rect.size.width / 2;
-        rect.origin.y = 19 - rect.size.height / 2;
+        rect.origin.x = (self.bounds.size.height - rect.size.width)/2;
+        rect.origin.y = (self.bounds.size.height - rect.size.height)/2;
 
         [icon_ drawInRect:Retina(rect)];
     }
 
-    if (badge_ != nil) {
+    if (placard_) {
         CGRect rect;
-        rect.size = [(UIImage *) badge_ size];
+        rect.size = [(UIImage *) placard_ size];
 
-        rect.size.width /= 4;
-        rect.size.height /= 4;
+        rect.origin.x = self.bounds.size.height / 2;
+        rect.origin.y = self.bounds.size.height / 2;
 
-        rect.origin.x = 25 - rect.size.width / 2;
-        rect.origin.y = 25 - rect.size.height / 2;
-
-        [badge_ drawInRect:Retina(rect)];
+        [placard_ drawInRect:Retina(rect)];
     }
 
     if (highlighted && kCFCoreFoundationVersionNumber < 800)
@@ -5969,17 +5978,29 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
 
     if (!highlighted)
         UISetColor(commercial_ ? Purple_ : Black_);
-    [name_ drawAtPoint:CGPointMake(36, 8) forWidth:(width - (placard_ == nil ? 68 : 94)) withFont:Font18Bold_ lineBreakMode:NSLineBreakByTruncatingTail];
 
-    if (placard_ != nil)
-        [placard_ drawAtPoint:CGPointMake(width - 52, 11)];
+    UIFont *versionFont = [UIFont systemFontOfSize:10];
+    CGRect nameRect;
+    CGRect versionRect;
+
+    float nameX = self.bounds.size.height + 5;
+    float versionWidth = 50;
+    versionRect.size = [latest_ sizeWithFont:versionFont forWidth:versionWidth lineBreakMode:NSLineBreakByTruncatingTail];
+    float nameWidth = width - versionRect.size.width - nameX - 5;
+    nameRect.size = [name_ sizeWithFont:Font18Bold_ forWidth:nameWidth lineBreakMode:NSLineBreakByTruncatingTail];
+
+    nameRect.origin = CGPointMake(nameX,(self.bounds.size.height - nameRect.size.height)/2);
+    versionRect.origin = CGPointMake(nameRect.origin.x + nameRect.size.width, nameRect.origin.y + nameRect.size.height - versionRect.size.height - 5);
+
+    [name_ drawAtPoint:nameRect.origin forWidth:nameWidth withFont:Font18Bold_ lineBreakMode:NSLineBreakByTruncatingTail];
+    [latest_ drawAtPoint:versionRect.origin forWidth:versionWidth withFont:versionFont lineBreakMode:NSLineBreakByTruncatingTail];
 }
 
 - (void) drawNormalContentRect:(CGRect)rect {
     bool highlighted(highlighted_);
     float width([self bounds].size.width);
 
-    if (icon_ != nil) {
+    if (icon_) {
         CGRect rect;
         rect.size = [(UIImage *) icon_ size];
 
@@ -5994,17 +6015,14 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
         [icon_ drawInRect:Retina(rect)];
     }
 
-    if (badge_ != nil) {
+    if (placard_) {
         CGRect rect;
-        rect.size = [(UIImage *) badge_ size];
-
-        rect.size.width /= 2;
-        rect.size.height /= 2;
+        rect.size = [(UIImage *) placard_ size];
 
         rect.origin.x = 36 - rect.size.width / 2;
         rect.origin.y = 36 - rect.size.height / 2;
 
-        [badge_ drawInRect:Retina(rect)];
+        [placard_ drawInRect:Retina(rect)];
     }
 
     if (highlighted && kCFCoreFoundationVersionNumber < 800)
@@ -6012,15 +6030,27 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
 
     if (!highlighted)
         UISetColor(commercial_ ? Purple_ : Black_);
-    [name_ drawAtPoint:CGPointMake(48, 8) forWidth:(width - (placard_ == nil ? 80 : 106)) withFont:Font18Bold_ lineBreakMode:NSLineBreakByTruncatingTail];
-    [source_ drawAtPoint:CGPointMake(58, 29) forWidth:(width - 95) withFont:Font12_ lineBreakMode:NSLineBreakByTruncatingTail];
+
+    UIFont *versionFont = [UIFont systemFontOfSize:10];
+    CGRect nameRect;
+    CGRect versionRect;
+
+    float versionWidth = 50;
+    nameRect.origin = CGPointMake(48, 8);
+    versionRect.size = [latest_ sizeWithFont:versionFont forWidth:versionWidth lineBreakMode:NSLineBreakByTruncatingTail];
+    float nameWidth = width - versionRect.size.width - nameRect.origin.x - 5;
+    nameRect.size = [name_ sizeWithFont:Font18Bold_ forWidth:nameWidth lineBreakMode:NSLineBreakByTruncatingTail];
+
+    versionRect.origin = CGPointMake(nameRect.origin.x + nameRect.size.width, nameRect.origin.y + nameRect.size.height - versionRect.size.height - 5);
+
+    [name_ drawAtPoint:nameRect.origin forWidth:nameWidth withFont:Font18Bold_ lineBreakMode:NSLineBreakByTruncatingTail];
+    [latest_ drawAtPoint:versionRect.origin forWidth:versionWidth withFont:versionFont lineBreakMode:NSLineBreakByTruncatingTail];
+    CGPoint sourceOrigin = CGPointMake(nameRect.origin.x + 28, 29);
+    [source_ drawAtPoint:sourceOrigin forWidth:(width - sourceOrigin.x - 5) withFont:Font12_ lineBreakMode:NSLineBreakByTruncatingTail];
 
     if (!highlighted)
         UISetColor(commercial_ ? Purplish_ : Gray_);
     [description_ drawAtPoint:CGPointMake(12, 46) forWidth:(width - 46) withFont:Font14_ lineBreakMode:NSLineBreakByTruncatingTail];
-
-    if (placard_ != nil)
-        [placard_ drawAtPoint:CGPointMake(width - 52, 9)];
 }
 
 - (void) drawContentRect:(CGRect)rect {
